@@ -1,0 +1,36 @@
+{
+  "product": "Veeam ONE",
+  "action": "Pre-Upgrade",
+  "timestamp": "2026-06-13T10:00:00.0000000Z",
+  "currentVersion": "11.0",
+  "targetVersion": "12.1",
+  "target": {
+    "computerName": "VEEAMONE01",
+    "sqlServer": "sql01.corp.local",
+    "sqlInstance": "",
+    "database": "VeeamONE",
+    "port": 1433
+  },
+  "checks": [
+    { "id": "os-version", "category": "System Health", "name": "OS Version", "status": "passed", "severity": "info", "evidence": "Microsoft Windows Server 2022 Standard (Build 20348)", "recommendation": "" },
+    { "id": "cpu-count", "category": "System Health", "name": "CPU Cores", "status": "passed", "severity": "medium", "evidence": "8 logical processors.", "recommendation": "" },
+    { "id": "ram-amount", "category": "System Health", "name": "Memory (RAM)", "status": "passed", "severity": "medium", "evidence": "16 GB physical memory.", "recommendation": "" },
+    { "id": "disk-free-system", "category": "System Health", "name": "System Drive Free Space", "status": "passed", "severity": "high", "evidence": "42.6 GB free on C:.", "recommendation": "" },
+    { "id": "pending-reboot", "category": "System Health", "name": "Pending Reboot", "status": "passed", "severity": "low", "evidence": "No pending reboot detected.", "recommendation": "" },
+    { "id": "sql-dns-resolution", "category": "Network Readiness", "name": "DNS Resolution", "status": "passed", "severity": "critical", "evidence": "sql01.corp.local resolves to 10.10.10.20.", "recommendation": "" },
+    { "id": "sql-port-connectivity", "category": "Network Readiness", "name": "SQL Port Connectivity", "status": "passed", "severity": "critical", "evidence": "TCP sql01.corp.local:1433 is reachable.", "recommendation": "" },
+    { "id": "sql-latency", "category": "Network Readiness", "name": "SQL Latency", "status": "passed", "severity": "low", "evidence": "TCP connect latency: 3 ms.", "recommendation": "" },
+    { "id": "sql-connection", "category": "SQL Readiness", "name": "SQL Connection", "status": "passed", "severity": "critical", "evidence": "Connected using Windows authentication.", "recommendation": "" },
+    { "id": "database-existence", "category": "SQL Readiness", "name": "Database Existence", "status": "passed", "severity": "critical", "evidence": "Database 'VeeamONE' is present.", "recommendation": "" },
+    { "id": "sql-version", "category": "SQL Readiness", "name": "SQL Version", "status": "passed", "severity": "info", "evidence": "SQL Server version 15.0.4345 (RTM).", "recommendation": "" },
+    { "id": "sql-edition", "category": "SQL Readiness", "name": "SQL Edition", "status": "passed", "severity": "info", "evidence": "Standard Edition (64-bit).", "recommendation": "" },
+    { "id": "sql-metadata-permission", "category": "SQL Readiness", "name": "Metadata Read Permission", "status": "passed", "severity": "high", "evidence": "Account can read metadata (1240 objects visible).", "recommendation": "" },
+    { "id": "veeam-one-monitoring", "category": "Veeam Services", "name": "Veeam ONE Monitoring Service", "status": "passed", "severity": "medium", "evidence": "Service is installed and running.", "recommendation": "" },
+    { "id": "veeam-one-reporting", "category": "Veeam Services", "name": "Veeam ONE Reporting Service", "status": "passed", "severity": "medium", "evidence": "Service is installed and running.", "recommendation": "" }
+  ],
+  "summary": {
+    "score": 100,
+    "status": "Ready",
+    "topIssues": []
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "product": "Veeam ONE",
+  "action": "Pre-Upgrade",
+  "timestamp": "2026-06-13T10:10:00.0000000Z",
+  "currentVersion": "11.0",
+  "targetVersion": "12.1",
+  "target": {
+    "computerName": "VEEAMONE01",
+    "sqlServer": "sql01.corp.local",
+    "sqlInstance": "",
+    "database": "VeeamONE",
+    "port": 1433
+  },
+  "checks": [
+    { "id": "os-version", "category": "System Health", "name": "OS Version", "status": "passed", "severity": "info", "evidence": "Microsoft Windows Server 2016 Standard (Build 14393)", "recommendation": "" },
+    { "id": "cpu-count", "category": "System Health", "name": "CPU Cores", "status": "passed", "severity": "medium", "evidence": "4 logical processors.", "recommendation": "" },
+    { "id": "ram-amount", "category": "System Health", "name": "Memory (RAM)", "status": "passed", "severity": "medium", "evidence": "8 GB physical memory.", "recommendation": "" },
+    { "id": "disk-free-system", "category": "System Health", "name": "System Drive Free Space", "status": "warning", "severity": "high", "evidence": "6.1 GB free on C:.", "recommendation": "Free additional disk space on the system drive before upgrade." },
+    { "id": "pending-reboot", "category": "System Health", "name": "Pending Reboot", "status": "passed", "severity": "low", "evidence": "No pending reboot detected.", "recommendation": "" },
+    { "id": "sql-dns-resolution", "category": "Network Readiness", "name": "DNS Resolution", "status": "passed", "severity": "critical", "evidence": "sql01.corp.local resolves to 10.10.10.20.", "recommendation": "" },
+    { "id": "sql-port-connectivity", "category": "Network Readiness", "name": "SQL Port Connectivity", "status": "failed", "severity": "critical", "evidence": "TCP sql01.corp.local:1433 not reachable within 5s.", "recommendation": "Open TCP port 1433 from the Veeam ONE server to the SQL Server." },
+    { "id": "sql-latency", "category": "Network Readiness", "name": "SQL Latency", "status": "skipped", "severity": "low", "evidence": "Skipped - no TCP connectivity.", "recommendation": "" },
+    { "id": "sql-connection", "category": "SQL Readiness", "name": "SQL Connection", "status": "skipped", "severity": "critical", "evidence": "No SQL connection.", "recommendation": "" },
+    { "id": "database-existence", "category": "SQL Readiness", "name": "Database Existence", "status": "skipped", "severity": "critical", "evidence": "Skipped - no SQL connection.", "recommendation": "" },
+    { "id": "veeam-one-monitoring", "category": "Veeam Services", "name": "Veeam ONE Monitoring Service", "status": "passed", "severity": "medium", "evidence": "Service is installed and running.", "recommendation": "" },
+    { "id": "veeam-one-agent", "category": "Veeam Services", "name": "Veeam ONE Agent", "status": "warning", "severity": "medium", "evidence": "Service is installed but Stopped.", "recommendation": "Start the service or confirm its expected state before upgrade." }
+  ],
+  "summary": {
+    "score": 65,
+    "status": "Not Ready",
+    "topIssues": [
+      "SQL Port Connectivity - Open TCP port 1433 from the Veeam ONE server to the SQL Server.",
+      "System Drive Free Space - Free additional disk space on the system drive before upgrade.",
+      "Veeam ONE Agent - Start the service or confirm its expected state before upgrade."
+    ]
+  }
+}

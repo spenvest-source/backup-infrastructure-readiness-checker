@@ -1,0 +1,17 @@
+{
+  "product": "veeam-one",
+  "displayName": "Veeam ONE",
+  "action": "pre-upgrade",
+  "categories": [
+    "System Health",
+    "SQL Readiness",
+    "Network Readiness",
+    "Veeam Services"
+  ],
+  "criticalCheckIds": [
+    "sql-dns-resolution",
+    "sql-port-connectivity",
+    "sql-connection",
+    "database-existence"
+  ]
+}
