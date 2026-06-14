@@ -78,9 +78,12 @@ export function validateAndNormalize(
   }
 
   const target = isObject(data.target) ? data.target : {};
+  const details = isObject(data.details) ? data.details : undefined;
   const result: ReadinessResult = {
     product: str(data.product, rules.displayName),
+    toolName: str(data.toolName, `${rules.displayName} Health Check & Troubleshooting Assistant`),
     action: str(data.action, "Pre-Upgrade"),
+    mode: str(data.mode, "Full"),
     timestamp: str(data.timestamp, new Date().toISOString()),
     currentVersion: str(data.currentVersion),
     targetVersion: str(data.targetVersion),
@@ -92,6 +95,7 @@ export function validateAndNormalize(
       port: typeof target.port === "number" ? target.port : 1433,
     },
     checks,
+    details,
   };
 
   const outcome = computeScore(checks, rules);

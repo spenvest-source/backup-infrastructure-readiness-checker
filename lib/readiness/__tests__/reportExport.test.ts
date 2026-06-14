@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validateAndNormalize } from "../parser";
-import { buildSupportSummary, exportJson, exportMarkdown } from "../reportExport";
+import { buildSupportSummary, exportCsv, exportHtml, exportJson, exportMarkdown } from "../reportExport";
 import rulesJson from "../rules/veeam-one-pre-upgrade.json";
 import type { NormalizedReport, RuleSet } from "../types";
 
@@ -8,12 +8,13 @@ const rules = rulesJson as RuleSet;
 
 function sampleReport(): NormalizedReport {
   const r = validateAndNormalize(
-    {
-      product: "Veeam ONE",
-      action: "Pre-Upgrade",
-      currentVersion: "11.0",
-      targetVersion: "12.1",
-      target: { sqlServer: "sql01", database: "VeeamONE", port: 1433 },
+      {
+        product: "Veeam ONE",
+        action: "Full Health Check",
+        mode: "Full",
+        currentVersion: "11.0",
+        targetVersion: "12.1",
+        target: { sqlServer: "sql01", database: "VeeamONE", port: 1433 },
       checks: [
         { id: "sql-port-connectivity", category: "Network Readiness", name: "SQL Port Connectivity", status: "failed", severity: "critical", evidence: "not reachable", recommendation: "Open TCP port 1433." },
         { id: "disk-free-system", category: "System Health", name: "System Drive Free Space", status: "warning", severity: "high", evidence: "6 GB free", recommendation: "Free disk space." },
@@ -29,10 +30,10 @@ function sampleReport(): NormalizedReport {
 describe("reportExport", () => {
   it("exportMarkdown includes status, score, a blockers section and a results table", () => {
     const md = exportMarkdown(sampleReport());
-    expect(md).toContain("# Readiness Report");
+    expect(md).toContain("# Health Report");
     expect(md).toContain("**Status:** Not Ready");
     expect(md).toContain("Score:** 70");
-    expect(md).toContain("## Upgrade Blockers");
+    expect(md).toContain("## Critical Issues");
     expect(md).toContain("| Category | Check | Status | Severity | Evidence | Recommendation |");
     expect(md).toContain("SQL Port Connectivity");
   });
@@ -47,8 +48,18 @@ describe("reportExport", () => {
 
   it("buildSupportSummary lists category scores and recommendations", () => {
     const text = buildSupportSummary(sampleReport());
-    expect(text).toContain("Readiness: Not Ready");
+    expect(text).toContain("Health: Not Ready");
     expect(text).toContain("Category scores:");
     expect(text).toContain("Open TCP port 1433.");
+  });
+
+  it("exports HTML and CSV report formats", () => {
+    const report = sampleReport();
+    const html = exportHtml(report);
+    const csv = exportCsv(report);
+    expect(html).toContain("Veeam ONE Health Check & Troubleshooting Assistant");
+    expect(html).toContain("<table>");
+    expect(csv).toContain('"Category","Check","Status","Severity","Evidence","Recommendation"');
+    expect(csv).toContain("SQL Port Connectivity");
   });
 });

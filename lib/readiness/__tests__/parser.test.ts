@@ -31,7 +31,9 @@ describe("parseReport", () => {
     const r = validateAndNormalize(
       {
         product: "Veeam ONE",
-        action: "Pre-Upgrade",
+        action: "Full Health Check",
+        mode: "Full",
+        details: { services: [{ displayName: "Veeam ONE Monitoring Service" }] },
         checks: [
           { id: "sql-port-connectivity", category: "Network Readiness", name: "SQL Port Connectivity", status: "failed", severity: "critical", evidence: "", recommendation: "open port" },
           { id: "os-version", category: "System Health", name: "OS Version", status: "passed", severity: "info" },
@@ -43,6 +45,8 @@ describe("parseReport", () => {
     if (r.ok) {
       expect(r.report.summary.score).toBe(75);
       expect(r.report.summary.status).toBe("Not Ready");
+      expect(r.report.mode).toBe("Full");
+      expect(r.report.details?.services).toBeTruthy();
       // invalid/missing severity defaults to medium; missing evidence defaults to ""
       expect(r.report.checks[1]!.evidence).toBe("");
     }

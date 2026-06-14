@@ -40,13 +40,13 @@ export default function ReadinessCheckerPage() {
     <div className="space-y-6">
       <header className="space-y-2">
         <h1 className="text-2xl font-bold sm:text-3xl">
-          Backup Infrastructure Readiness Checker
+          Veeam ONE Health Check &amp; Troubleshooting Assistant
         </h1>
         <p className="text-slate-400">
-          Pre-installation and pre-upgrade validation for backup infrastructure.
+          Upgrade readiness, health scoring, troubleshooting checks and report exports for Veeam ONE.
         </p>
         <div className="rounded-lg border border-amber-700/50 bg-amber-900/20 px-4 py-2 text-sm text-amber-200">
-          This is an unofficial readiness tool. It does not replace vendor
+          This is an unofficial open-source helper tool. It does not replace vendor
           documentation or official support guidance. Review output before
           sharing.
         </div>
@@ -74,7 +74,7 @@ export default function ReadinessCheckerPage() {
       )}
 
       {report ? (
-        <Section step={4} title="Readiness report">
+        <Section step={4} title="Health report">
           <div className="space-y-6">
             <ScoreCard report={report} />
 
@@ -113,7 +113,7 @@ export default function ReadinessCheckerPage() {
         inputs && (
           <div className="rounded-xl border border-dashed border-slate-800 px-5 py-8 text-center text-sm text-slate-500">
             No result yet. Run the script on the Veeam ONE server and upload its
-            JSON (or load a sample above) to see the readiness report.
+            JSON (or load a sample above) to see the health report.
           </div>
         )
       )}

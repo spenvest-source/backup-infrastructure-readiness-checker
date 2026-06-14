@@ -1,12 +1,16 @@
 {
   "product": "veeam-one",
   "displayName": "Veeam ONE",
-  "action": "pre-upgrade",
+  "action": "health-assistant",
   "categories": [
-    "System Health",
-    "SQL Readiness",
-    "Network Readiness",
-    "Veeam Services"
+    "Upgrade Readiness",
+    "Veeam Services Health",
+    "SQL / Database Health",
+    "Collection Health",
+    "Alarm Health",
+    "Port Checks",
+    "Log Analysis",
+    "Architecture / Sizing"
   ],
   "criticalCheckIds": [
     "sql-dns-resolution",

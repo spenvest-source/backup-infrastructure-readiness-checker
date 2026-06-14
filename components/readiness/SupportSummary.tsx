@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import {
   buildSupportSummary,
+  exportCsv,
+  exportHtml,
   exportJson,
   exportMarkdown,
 } from "@/lib/readiness/reportExport";
@@ -42,6 +44,18 @@ export function SupportSummary({ report }: { report: NormalizedReport }) {
           className="rounded-md border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm hover:bg-slate-700"
         >
           Export Report as JSON
+        </button>
+        <button
+          onClick={() => downloadText("readiness-report.html", exportHtml(report), "text/html")}
+          className="rounded-md border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm hover:bg-slate-700"
+        >
+          Export Report as HTML
+        </button>
+        <button
+          onClick={() => downloadText("readiness-report.csv", exportCsv(report), "text/csv")}
+          className="rounded-md border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm hover:bg-slate-700"
+        >
+          Export Report as CSV
         </button>
         <button
           onClick={() => downloadText("readiness-report.md", exportMarkdown(report), "text/markdown")}

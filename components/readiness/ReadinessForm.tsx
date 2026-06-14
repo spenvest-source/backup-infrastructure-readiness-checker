@@ -24,12 +24,8 @@ type Errors = Partial<Record<keyof FormInputs, string>>;
 
 function validate(form: FormInputs): Errors {
   const errors: Errors = {};
-  if (!form.currentVersion.trim()) errors.currentVersion = "Current version is required.";
-  if (!form.targetVersion.trim()) errors.targetVersion = "Target version is required.";
-  if (!form.sqlServer.trim()) errors.sqlServer = "SQL Server is required.";
-  if (!form.databaseName.trim()) errors.databaseName = "Database name is required.";
-  const port = Number(form.sqlPort);
-  if (!form.sqlPort.trim() || !Number.isInteger(port) || port < 1 || port > 65535) {
+  const port = Number(form.sqlPort || "1433");
+  if (form.sqlPort.trim() && (!Number.isInteger(port) || port < 1 || port > 65535)) {
     errors.sqlPort = "SQL Port must be a number between 1 and 65535.";
   }
   return errors;
@@ -93,16 +89,16 @@ export function ReadinessForm({
         </label>
         <label className={labelCls}>
           <span className="text-slate-300">Action</span>
-          <select className={inputCls} value="Pre-Upgrade" disabled>
-            <option>Pre-Upgrade</option>
+          <select className={inputCls} value="Full Health Check" disabled>
+            <option>Full Health Check</option>
           </select>
         </label>
-        {field("currentVersion", "Current version", "11.0", true)}
-        {field("targetVersion", "Target version", "12.1", true)}
-        {field("sqlServer", "SQL Server", "sql01.corp.local", true)}
+        {field("currentVersion", "Current version (optional)", "11.0")}
+        {field("targetVersion", "Target version (optional)", "12.1")}
+        {field("sqlServer", "SQL Server (optional but recommended)", "sql01.corp.local")}
         {field("sqlInstance", "SQL Instance (optional)", "VEEAMSQL2016")}
-        {field("databaseName", "Database name", "VeeamONE", true)}
-        {field("sqlPort", "SQL Port", "1433", true)}
+        {field("databaseName", "Database name", "VeeamONE")}
+        {field("sqlPort", "SQL Port", "1433")}
       </div>
       <button
         type="submit"

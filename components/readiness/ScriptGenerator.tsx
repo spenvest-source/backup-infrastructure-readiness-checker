@@ -72,9 +72,11 @@ export function ScriptGenerator({ inputs }: { inputs: FormInputs }) {
       <p className="text-sm text-slate-400">
         Run <code className="rounded bg-slate-800 px-1.5 py-0.5">{SCRIPT_NAME}</code>{" "}
         <strong>on the Veeam ONE server</strong> (or a host with the same network
-        path to SQL). It writes a sanitized JSON result locally — nothing is
-        uploaded automatically and no passwords or secrets are collected. Review
-        the JSON before sharing.
+        path to SQL). It now supports `-Mode Upgrade`, `-Mode Health`, `-Mode Full`,
+        log analysis, port checks, sizing guidance, and JSON/HTML/CSV exports.
+        It writes sanitized local report files only; nothing is uploaded
+        automatically and no passwords or secrets are collected. Review the
+        report before sharing.
       </p>
       <div className="flex gap-2">
         <button

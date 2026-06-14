@@ -1,171 +1,162 @@
-# Backup Infrastructure Readiness Checker — Product Documentation
+# Veeam ONE Health Check & Troubleshooting Assistant — Product Documentation
 
-> ⚠️ **Unofficial readiness tool.** It does not replace vendor documentation or
-> official support guidance. Review all output before sharing.
+> Unofficial open-source helper tool. It does not replace vendor documentation
+> or official support guidance.
 
-## 1. Overview
+## Overview
 
-The **Backup Infrastructure Readiness Checker** is a browser-based tool that
-helps administrators validate infrastructure **before** a Veeam-related
-installation or upgrade. It turns a set of manual pre-flight checks into a
-repeatable, scored readiness report.
+This repository has moved beyond a single pre-upgrade script. It now provides a
+modular **Veeam ONE Health Check & Troubleshooting Assistant** with two main
+parts:
 
-It is **frontend-only**: a Next.js app that runs entirely in the browser. There
-is no backend, no database, no account, and nothing is transmitted to any
-server. The only component that touches the target infrastructure is a
-PowerShell script the user runs themselves.
+- A browser UI that generates the PowerShell script and renders uploaded JSON
+  reports.
+- A Windows PowerShell 5.1 compatible script that performs health,
+  troubleshooting and upgrade-readiness checks locally.
 
-**MVP scope:** *Veeam ONE — Pre-Upgrade Readiness*. The design is modular so
-additional products/actions can be added (see [Roadmap](#9-roadmap)).
+## Core Design Goals
 
-## 2. Who it is for
+- Keep the original upgrade readiness coverage intact
+- Add broader health and troubleshooting modules
+- Stay read-only
+- Avoid crashing when Veeam ONE or SQL are missing
+- Produce structured machine-readable and human-readable reports
 
-- Backup/infrastructure administrators planning a Veeam ONE upgrade.
-- Pre-sales / professional-services engineers running a readiness pass.
-- Support engineers who want a structured summary of a customer environment.
+## Modules
 
-## 3. Key concepts
+### Upgrade Readiness
 
-| Concept | Meaning |
-| --- | --- |
-| **Product** | The software being validated (MVP: Veeam ONE). |
-| **Action** | The lifecycle event being prepared for (MVP: Pre-Upgrade). |
-| **Check** | A single read-only validation with a status and severity. |
-| **Category** | A grouping of checks: System Health, Network Readiness, SQL Readiness, Veeam Services. |
-| **Rule set** | A JSON file defining a product/action's categories and which checks are upgrade-critical. |
-| **Readiness report** | The scored result rendered after a JSON result is uploaded. |
+- OS version
+- CPU / RAM
+- Disk free space
+- Installed Veeam ONE version
+- SQL connectivity
+- SQL version / edition
+- .NET Framework
+- Pending reboot
+- Service account visibility
 
-## 4. How it works
+### Services Health
 
-1. The user opens `/readiness-checker` and selects **Veeam ONE / Pre-Upgrade**,
-   then enters the target details (current/target version, SQL Server, optional
-   instance, database name, SQL port).
-2. The app generates a **PowerShell script** by loading a template and replacing
-   placeholders (`{{CURRENT_VERSION}}`, `{{TARGET_VERSION}}`, `{{SQL_SERVER}}`,
-   `{{SQL_INSTANCE}}`, `{{DATABASE_NAME}}`, `{{SQL_PORT}}`).
-3. The user **copies or downloads** the script and runs it **on the Veeam ONE
-   server** (or a host with the same network path to SQL). The script writes a
-   sanitized JSON result to a local file — it uploads nothing.
-4. The user **uploads** that JSON back into the browser. The app validates the
-   schema, **recomputes the score authoritatively**, and renders the report.
-5. The user can **copy a support summary**, or **export** the normalized report
-   as JSON or Markdown.
+- Monitoring Service
+- Reporting Service
+- Agent
+- Error Reporting Service
 
-```
-Browser (Next.js)                      Veeam ONE server
-┌──────────────────────┐               ┌───────────────────────────┐
-│ form → generate .ps1 │── download ──▶│ run VeeamOnePreUpgrade...  │
-│                      │               │   → writes result.json     │
-│ upload result.json  ◀│── user file ──│   (local only, no upload)  │
-│ validate + score     │               └───────────────────────────┘
-│ → readiness report   │
-└──────────────────────┘
-```
+Each service attempts to report:
 
-## 5. The checks
+- Exists / missing
+- Status
+- Startup type
+- PID
+- Last start time when available
+- Recommendation if stopped or disabled
 
-The PowerShell script runs 20 read-only checks across four categories. Each
-emits `{ id, category, name, status, severity, evidence, recommendation }`.
+### SQL / Database Health
 
-### System Health
-| id | Check | Severity | Validates |
-| --- | --- | --- | --- |
-| `os-version` | OS Version | info | OS caption and build number |
-| `cpu-count` | CPU Cores | medium | Logical processor count (≥4 recommended) |
-| `ram-amount` | Memory (RAM) | medium | Physical memory (≥8 GB recommended) |
-| `disk-free-system` | System Drive Free Space | high | Free space on the system drive |
-| `pending-reboot` | Pending Reboot | high | CBS / Windows Update / pending file-rename flags |
-| `powershell-version` | PowerShell Version | low | Windows PowerShell ≥ 5.1 |
-| `dotnet-runtime` | .NET Framework | low | .NET Framework ≥ 4.7.2 |
+- SQL target availability
+- Database existence
+- SQL edition and version
+- Compatibility level
+- Recovery model
+- Database size
+- Log file size
+- Free space
+- SQL Express 10 GB risk
+- Growth warnings
 
-### Network Readiness
-| id | Check | Severity | Validates |
-| --- | --- | --- | --- |
-| `sql-dns-resolution` | DNS Resolution | critical | SQL Server hostname resolves |
-| `sql-port-connectivity` | SQL Port Connectivity | critical | TCP reachability to the SQL port |
-| `sql-latency` | SQL Latency | low/medium | TCP round-trip latency to SQL |
+### Collection Health
 
-### SQL Readiness
-| id | Check | Severity | Validates |
-| --- | --- | --- | --- |
-| `sql-named-instance` | Named Instance | low | Warns when a named instance relies on SQL Browser |
-| `sql-connection` | SQL Connection | critical | Connect using Windows authentication |
-| `database-existence` | Database Existence | critical | The Veeam ONE database exists |
-| `sql-version` | SQL Version | info | SQL Server product version/level |
-| `sql-edition` | SQL Edition | info | SQL Server edition |
-| `sql-express-size` | SQL Express Size | medium | Warns if an Express DB is over 8 GB (10 GB cap) |
-| `sql-metadata-permission` | Metadata Read Permission | high | Account can read database metadata |
+Where version-specific tables are available, the script attempts to report:
 
-### Veeam Services
-| id | Check | Severity | Validates |
-| --- | --- | --- | --- |
-| `veeam-one-monitoring` | Veeam ONE Monitoring Service | medium | Service installed and running |
-| `veeam-one-reporting` | Veeam ONE Reporting Service | medium | Service installed and running |
-| `veeam-one-agent` | Veeam ONE Agent | medium | Service installed and running |
-| `veeam-one-error-reporting` | Veeam ONE Error Reporting Service | medium | Service installed and running |
+- Failed collector tasks
+- Object Properties collection failures
+- Performance collection failures
+- Last success time
+- Last failure time
+- Failure count
 
-**Critical checks** (a failure makes the environment **Not Ready**), defined in
-`lib/readiness/rules/veeam-one-pre-upgrade.json`:
-`sql-dns-resolution`, `sql-port-connectivity`, `sql-connection`,
-`database-existence`.
+If the target version exposes different schemas, the check is marked as
+unsupported instead of crashing.
 
-## 6. Scoring model
+### Alarm Health
 
-The score is recomputed in the browser from the raw checks; any `summary` in the
-uploaded file is ignored (so it cannot be tampered with to inflate the result).
+- Total alarms
+- Active alarms
+- Disabled alarms
+- Warning / error alarms
+- Recently triggered alarms
+- Highlighting of malware, backup, repository, infrastructure, SQL and collector-related alarms
 
-- **Start** at 100.
-- **Deduct** per check:
-  - Failed: critical −25, high −15, medium −10, low −5, info 0
-  - Warning: −5
-  - Skipped / Passed: 0
-- **Clamp** to a minimum of 0.
+### Port Checks
 
-**Overall status:**
-- **Ready** — score ≥ 85, no critical-check failures, no warnings
-- **Warning** — score 60–84, or any warnings present
-- **Not Ready** — score < 60, or any critical-check failure
+- SQL connectivity
+- Discovered infrastructure targets when available
+- Manually supplied target / port combinations
 
-**Category scores** apply the same start-at-100-and-deduct method to the checks
-within each category, giving a per-area readout.
+### Log Analyzer
 
-## 7. Report & outputs
+Known issue patterns include:
 
-The readiness report shows: overall score, status badge (Ready / Warning / Not
-Ready), the four category scores, upgrade blockers, recommendations, and the
-full check-results table (Category, Check Name, Status, Severity, Evidence,
-Recommendation). Badge colours: passed = green, warning = amber, failed/critical
-= red, skipped = gray.
+- Named Pipes Provider error 40
+- Login failed
+- Timeout expired
+- Could not allocate a new page
+- Database full
+- Collector task failed
+- Object Properties failure
+- Malware detection
+- TLS / certificate errors
+- Access denied
+- Service crash
 
-Outputs:
-- **Copy Support Summary** — plain-text summary for a ticket or email.
-- **Export Report as JSON** — the normalized report.
-- **Export Report as Markdown** — a shareable Markdown document.
+### Architecture / Sizing Guidance
 
-## 8. Security & privacy
+Optional workload guidance for:
 
-- The PowerShell script collects and outputs **no passwords, secrets, or
-  tokens**, and uses **Windows authentication only** for SQL checks.
-- The script writes JSON to a **local file** and **uploads nothing**.
-- JSON parsing, validation and scoring happen **entirely in the browser**; no
-  data leaves the user's machine via this tool.
-- Result files describe customer infrastructure — **review before sharing**.
+- VM count
+- Host count
+- Repository size
 
-## 9. Roadmap
+This section is intentionally conservative and clearly marked as non-official
+guidance.
 
-**Current:** Veeam ONE Pre-Upgrade.
+## Reports
 
-**Planned:** VBR Pre-Upgrade · VB365 Pre-Install · VB365 Object Storage
-Validation · VBR Repository Validation · Microsoft 365 Permission Validation ·
-VMware/vCenter Connectivity Validation.
+The script can export:
 
-A new product/action is added by supplying a rule set
-(`lib/readiness/rules/*.json`), a PowerShell template
-(`public/scripts/*.ps1`), and selector options — the scoring engine, parser,
-exporters and report UI are generic over the rule set.
+- JSON
+- HTML
+- CSV
 
-## 10. Disclaimer
+The browser app can export the uploaded normalized report as:
 
-This is an **unofficial** diagnostic/readiness tool. It is not affiliated with,
-endorsed by, or supported by Veeam, and does not replace official documentation
-or support.
+- JSON
+- Markdown
+- HTML
+- CSV
+
+## Scoring
+
+The overall score remains 0-100 and is still check-driven so the original
+workflow remains compatible. Failures and warnings are weighted by severity and
+the browser recomputes the authoritative score after upload.
+
+## Compatibility
+
+- Windows PowerShell 5.1 target
+- Basic checks should work without admin rights
+- Reduced visibility should become a warning, not a terminating error
+
+## Sample Assets
+
+- `public/samples/sample-ready.json`
+- `public/samples/sample-warning.json`
+- `public/samples/sample-not-ready.json`
+- `public/samples/logs/veeamone-known-issues.log`
+
+## Disclaimer
+
+This project is an **unofficial open-source helper tool**. It is not a support
+statement, not an official compatibility matrix, and not a replacement for
+vendor documentation or escalation guidance.

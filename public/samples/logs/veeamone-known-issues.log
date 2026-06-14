@@ -1,0 +1,6 @@
+2026-06-12 08:14:10 [Error] Named Pipes Provider, error: 40 - Could not open a connection to SQL Server
+2026-06-12 08:14:11 [Error] Login failed for user 'DOMAIN\veeamone'
+2026-06-12 08:14:13 [Warning] Collector task failed during Object Properties refresh
+2026-06-12 08:15:01 [Error] Could not allocate a new page for database 'VeeamONE' because the PRIMARY filegroup is full
+2026-06-12 08:17:42 [Critical] Potential malware activity detected for protected workload VM-APP-01
+2026-06-12 08:21:00 [Warning] TLS handshake failed because of a remote certificate issue

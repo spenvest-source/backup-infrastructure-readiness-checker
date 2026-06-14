@@ -7,7 +7,7 @@ export function ScoreCard({ report }: { report: NormalizedReport }) {
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <div className="rounded-xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-800 p-5">
         <div className="text-xs uppercase tracking-wide text-slate-400">
-          Overall Readiness Score
+          Overall Health Score
         </div>
         <div className="mt-1 text-5xl font-bold">{summary.score}</div>
         <div className="text-xs text-slate-400">out of 100</div>

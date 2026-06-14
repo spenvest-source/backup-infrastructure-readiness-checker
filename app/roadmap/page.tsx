@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Roadmap — Backup Infrastructure Readiness Checker",
+  title: "Roadmap — Veeam ONE Health Check & Troubleshooting Assistant",
 };
 
-const CURRENT = ["Veeam ONE Pre-Upgrade"];
+const CURRENT = ["Veeam ONE Health Check & Troubleshooting Assistant"];
 
 const PLANNED = [
   "VBR Pre-Upgrade",
@@ -21,8 +21,8 @@ export default function RoadmapPage() {
       <header>
         <h1 className="text-2xl font-bold">Roadmap</h1>
         <p className="mt-1 text-slate-400">
-          The readiness checker is modular. The MVP ships one product; more
-          validators are planned.
+          The assistant is modular. Veeam ONE health and upgrade diagnostics are
+          live, and more product-specific assistants are planned.
         </p>
       </header>
 

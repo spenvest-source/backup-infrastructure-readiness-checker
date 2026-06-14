@@ -28,7 +28,9 @@ export interface ResultSummary {
 /** The JSON document the script outputs and the user uploads. */
 export interface ReadinessResult {
   product: string;
+  toolName?: string;
   action: string;
+  mode?: string;
   timestamp: string;
   currentVersion: string;
   targetVersion: string;
@@ -41,6 +43,7 @@ export interface ReadinessResult {
   };
   checks: CheckResult[];
   summary?: ResultSummary;
+  details?: Record<string, unknown>;
 }
 
 /** Per-category roll-up shown on the report. */

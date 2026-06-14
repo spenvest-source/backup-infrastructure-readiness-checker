@@ -3,9 +3,9 @@ import Link from "next/link";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Backup Infrastructure Readiness Checker",
+  title: "Veeam ONE Health Check & Troubleshooting Assistant",
   description:
-    "Pre-installation and pre-upgrade validation for backup infrastructure. Unofficial readiness tool.",
+    "Veeam ONE health checks, troubleshooting, SQL diagnostics, log analysis and upgrade readiness guidance.",
 };
 
 export default function RootLayout({
@@ -19,11 +19,11 @@ export default function RootLayout({
         <header className="border-b border-slate-800 bg-slate-900/60">
           <nav className="mx-auto flex max-w-5xl items-center justify-between px-5 py-3">
             <Link href="/readiness-checker" className="font-semibold tracking-tight">
-              Readiness Checker
+              Veeam ONE Assistant
             </Link>
             <div className="flex gap-4 text-sm text-slate-300">
               <Link href="/readiness-checker" className="hover:text-white">
-                Checker
+                Assistant
               </Link>
               <Link href="/roadmap" className="hover:text-white">
                 Roadmap
@@ -33,8 +33,8 @@ export default function RootLayout({
         </header>
         <main className="mx-auto max-w-5xl px-5 py-8">{children}</main>
         <footer className="mx-auto max-w-5xl px-5 pb-10 pt-4 text-xs text-slate-500">
-          Unofficial diagnostic/readiness tool. Not affiliated with or supported
-          by Veeam.
+          Unofficial open-source diagnostic and troubleshooting helper. Not
+          affiliated with or supported by Veeam.
         </footer>
       </body>
     </html>
