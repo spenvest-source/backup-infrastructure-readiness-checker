@@ -166,7 +166,7 @@ if ($sqlConfigured) {
         $ips = [System.Net.Dns]::GetHostAddresses($SqlServer) | ForEach-Object { $_.IPAddressToString }
         Add-Check 'sql-dns-resolution' 'Network Readiness' 'DNS Resolution' 'passed' 'critical' "$SqlServer resolves to $($ips -join ', ')." ''
     } catch {
-        Add-Check 'sql-dns-resolution' 'Network Readiness' 'DNS Resolution' 'failed' 'critical' "Could not resolve $SqlServer: $($_.Exception.Message)" 'Verify the SQL Server hostname and DNS configuration on the Veeam ONE server.'
+        Add-Check 'sql-dns-resolution' 'Network Readiness' 'DNS Resolution' 'failed' 'critical' "Could not resolve ${SqlServer}: $($_.Exception.Message)" 'Verify the SQL Server hostname and DNS configuration on the Veeam ONE server.'
     }
 } else {
     Add-Check 'sql-dns-resolution' 'Network Readiness' 'DNS Resolution' 'skipped' 'critical' 'No SQL Server specified.' ''
