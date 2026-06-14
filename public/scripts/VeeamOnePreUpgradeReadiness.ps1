@@ -12,6 +12,12 @@
 
 .NOTES
     Unofficial helper tool. Review all output before sharing or acting on it.
+
+    Example (run from the folder where this script was saved):
+      cd <PATH_WHERE_SCRIPT_RESIDES>
+      Unblock-File .\VeeamOnePreUpgradeReadiness.ps1
+      Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+      .\VeeamOnePreUpgradeReadiness.ps1
 #>
 
 [CmdletBinding()]
@@ -45,6 +51,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$ScriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
 
 function Normalize-TemplateValue {
     param(
@@ -67,16 +74,42 @@ function Normalize-IntValue {
     return $Default
 }
 
+function Resolve-ScriptPath {
+    param(
+        [string]$Path,
+        [string]$DefaultName = ''
+    )
+    $candidate = Normalize-TemplateValue -Value $Path
+    if ([string]::IsNullOrWhiteSpace($candidate)) {
+        if ([string]::IsNullOrWhiteSpace($DefaultName)) { return '' }
+        return (Join-Path -Path $ScriptRoot -ChildPath $DefaultName)
+    }
+    if ([System.IO.Path]::IsPathRooted($candidate)) {
+        return $candidate
+    }
+    return (Join-Path -Path $ScriptRoot -ChildPath $candidate)
+}
+
+function Ensure-ParentDirectory {
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return }
+    $parent = Split-Path -Parent $Path
+    if ($parent -and -not (Test-Path $parent)) {
+        New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    }
+}
+
 $CurrentVersion = Normalize-TemplateValue -Value $CurrentVersion
 $TargetVersion = Normalize-TemplateValue -Value $TargetVersion
 $SqlServer = Normalize-TemplateValue -Value $SqlServer
 $SqlInstance = Normalize-TemplateValue -Value $SqlInstance
 $DatabaseName = Normalize-TemplateValue -Value $DatabaseName -Default 'VeeamONE'
 $SqlPort = Normalize-IntValue -Value $SqlPort -Default 1433
-$LogPath = Normalize-TemplateValue -Value $LogPath
-$ExportJson = Normalize-TemplateValue -Value $ExportJson -Default $OutputPath
-$ExportHtml = Normalize-TemplateValue -Value $ExportHtml
-$ExportCsv = Normalize-TemplateValue -Value $ExportCsv
+$LogPath = Resolve-ScriptPath -Path $LogPath
+$OutputPath = Resolve-ScriptPath -Path $OutputPath -DefaultName 'VeeamOneHealthReport.json'
+$ExportJson = Resolve-ScriptPath -Path $ExportJson -DefaultName (Split-Path -Leaf $OutputPath)
+$ExportHtml = Resolve-ScriptPath -Path $ExportHtml
+$ExportCsv = Resolve-ScriptPath -Path $ExportCsv
 
 $script:Checks = New-Object System.Collections.ArrayList
 $script:Recommendations = New-Object System.Collections.ArrayList
@@ -261,11 +294,17 @@ function Get-VeeamOneVersion {
 function Get-DotNetVersion {
     try {
         $release = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full' -Name Release -ErrorAction Stop).Release
-        $name = if ($release -ge 533320) { '4.8.1 or later' }
-            elseif ($release -ge 528040) { '4.8' }
-            elseif ($release -ge 461808) { '4.7.2' }
-            elseif ($release -ge 460798) { '4.7' }
-            else { 'Earlier than 4.7' }
+        if ($release -ge 533320) {
+            $name = '4.8.1 or later'
+        } elseif ($release -ge 528040) {
+            $name = '4.8'
+        } elseif ($release -ge 461808) {
+            $name = '4.7.2'
+        } elseif ($release -ge 460798) {
+            $name = '4.7'
+        } else {
+            $name = 'Earlier than 4.7'
+        }
         return [ordered]@{
             release = $release
             version = $name
@@ -400,7 +439,9 @@ function Test-PortConnectivity {
                 reachable = [bool]$res.TcpTestSucceeded
                 latencyMs = $null
                 source = 'Test-NetConnection'
-                detail = if ($res.TcpTestSucceeded) { 'Reachable.' } else { 'TCP test failed.' }
+                detail = $(
+                    if ($res.TcpTestSucceeded) { 'Reachable.' } else { 'TCP test failed.' }
+                )
             }
         } catch {}
     }
@@ -508,10 +549,13 @@ function Get-VeeamServiceHealth {
             exists = $true
             status = [string]$svc.State
             startupType = [string]$svc.StartMode
-            processId = if ($svc.ProcessId -gt 0) { [int]$svc.ProcessId } else { $null }
+            processId = $null
             lastStartTime = $startTime
             account = [string]$svc.StartName
             recommendation = $recommendation
+        }
+        if ($svc.ProcessId -gt 0) {
+            $entry.processId = [int]$svc.ProcessId
         }
         $evidence = "Status=$($entry.status); StartupType=$($entry.startupType)"
         if ($entry.processId) { $evidence += "; PID=$($entry.processId)" }
@@ -588,7 +632,11 @@ function Get-SqlDatabaseHealth {
     if ($dbExists.ok -and $null -ne $dbExists.value -and $dbExists.value -isnot [System.DBNull]) {
         Add-Check -Id 'database-existence' -Category 'Upgrade Readiness' -Name 'Database Availability' -Status 'passed' -Severity 'critical' -Evidence "Database '$DatabaseName' exists." -Recommendation ''
     } else {
-        $msg = if ($dbExists.ok) { "Database '$DatabaseName' was not found." } else { $dbExists.error }
+        if ($dbExists.ok) {
+            $msg = "Database '$DatabaseName' was not found."
+        } else {
+            $msg = $dbExists.error
+        }
         $summary.errors += $msg
         Add-Check -Id 'database-existence' -Category 'Upgrade Readiness' -Name 'Database Availability' -Status 'failed' -Severity 'critical' -Evidence $msg -Recommendation 'Verify the Veeam ONE database name and the SQL instance configuration.'
         return $summary
@@ -605,8 +653,13 @@ function Get-SqlDatabaseHealth {
     $edition = Invoke-SqlScalarSafe -Query "SELECT CAST(SERVERPROPERTY('Edition') AS varchar(128))" -Database 'master'
     if ($edition.ok) {
         $summary.edition = [string]$edition.value
-        $editionStatus = if ($summary.edition -match 'Express|Standard|Enterprise') { 'passed' } else { 'warning' }
-        $editionRec = if ($editionStatus -eq 'warning') { 'Confirm that this SQL edition is supported for the intended Veeam ONE deployment.' } else { '' }
+        if ($summary.edition -match 'Express|Standard|Enterprise') {
+            $editionStatus = 'passed'
+            $editionRec = ''
+        } else {
+            $editionStatus = 'warning'
+            $editionRec = 'Confirm that this SQL edition is supported for the intended Veeam ONE deployment.'
+        }
         Add-Check -Id 'sql-edition' -Category 'Upgrade Readiness' -Name 'SQL Edition' -Status $editionStatus -Severity 'medium' -Evidence $summary.edition -Recommendation $editionRec
     } else {
         Add-Check -Id 'sql-edition' -Category 'Upgrade Readiness' -Name 'SQL Edition' -Status 'warning' -Severity 'medium' -Evidence "Could not read SQL edition: $($edition.error)" -Recommendation 'Confirm the SQL edition manually.'
@@ -725,8 +778,14 @@ FROM dbo.CollectorTaskSessions;
     )
     $query = Invoke-SqlVariantQuery -Variants $variants
     if (-not $query.ok) {
-        $result.note = if ($query.unsupported) { 'Check not supported on this version.' } else { $query.error }
-        Add-Check -Id 'collection-health' -Category 'Collection Health' -Name 'Collection Health Availability' -Status (if ($query.unsupported) { 'skipped' } else { 'warning' }) -Severity 'medium' -Evidence $result.note -Recommendation ''
+        if ($query.unsupported) {
+            $result.note = 'Check not supported on this version.'
+            $availabilityStatus = 'skipped'
+        } else {
+            $result.note = $query.error
+            $availabilityStatus = 'warning'
+        }
+        Add-Check -Id 'collection-health' -Category 'Collection Health' -Name 'Collection Health Availability' -Status $availabilityStatus -Severity 'medium' -Evidence $result.note -Recommendation ''
         return $result
     }
 
@@ -740,8 +799,13 @@ FROM dbo.CollectorTaskSessions;
     $result.lastFailureTime = Get-DataRowValue -Row $row -Column 'LastFailureTime'
     $result.failureCount = Get-DataRowValue -Row $row -Column 'FailureCount'
 
-    $status = if ([int]$result.failureCount -gt 0) { 'warning' } else { 'passed' }
-    $rec = if ($status -eq 'warning') { 'Review collector tasks, object properties jobs, performance collection and related services.' } else { '' }
+    if ([int]$result.failureCount -gt 0) {
+        $status = 'warning'
+        $rec = 'Review collector tasks, object properties jobs, performance collection and related services.'
+    } else {
+        $status = 'passed'
+        $rec = ''
+    }
     $evidence = "FailedTasks=$($result.failedCollectorTasks); ObjectPropertiesFailures=$($result.objectPropertiesFailures); PerformanceFailures=$($result.performanceCollectionFailures); LastSuccess=$($result.lastSuccessfulCollectionTime); LastFailure=$($result.lastFailureTime)"
     Add-Check -Id 'collection-health' -Category 'Collection Health' -Name 'Collection Task Health' -Status $status -Severity 'high' -Evidence $evidence -Recommendation $rec
     return $result
@@ -795,8 +859,14 @@ ORDER BY last_triggered_at DESC;
     )
     $query = Invoke-SqlVariantQuery -Variants $variants
     if (-not $query.ok) {
-        $result.note = if ($query.unsupported) { 'Check not supported on this version.' } else { $query.error }
-        Add-Check -Id 'alarm-health' -Category 'Alarm Health' -Name 'Alarm Health Availability' -Status (if ($query.unsupported) { 'skipped' } else { 'warning' }) -Severity 'medium' -Evidence $result.note -Recommendation ''
+        if ($query.unsupported) {
+            $result.note = 'Check not supported on this version.'
+            $availabilityStatus = 'skipped'
+        } else {
+            $result.note = $query.error
+            $availabilityStatus = 'warning'
+        }
+        Add-Check -Id 'alarm-health' -Category 'Alarm Health' -Name 'Alarm Health Availability' -Status $availabilityStatus -Severity 'medium' -Evidence $result.note -Recommendation ''
         return $result
     }
 
@@ -822,8 +892,13 @@ ORDER BY last_triggered_at DESC;
         }
     }
 
-    $status = if ($result.warningOrErrorAlarms -gt 0 -or $result.highlighted.Count -gt 0) { 'warning' } else { 'passed' }
-    $rec = if ($status -eq 'warning') { 'Review active alarms, especially SQL, repository, collector and malware-related alerts.' } else { '' }
+    if ($result.warningOrErrorAlarms -gt 0 -or $result.highlighted.Count -gt 0) {
+        $status = 'warning'
+        $rec = 'Review active alarms, especially SQL, repository, collector and malware-related alerts.'
+    } else {
+        $status = 'passed'
+        $rec = ''
+    }
     $evidence = "Total=$($result.totalAlarms); Active=$($result.activeAlarms); Disabled=$($result.disabledAlarms); WarningOrError=$($result.warningOrErrorAlarms); Recent=$($result.recentAlarmNames -join ', ')"
     Add-Check -Id 'alarm-health' -Category 'Alarm Health' -Name 'Alarm Summary' -Status $status -Severity 'medium' -Evidence $evidence -Recommendation $rec
     return $result
@@ -850,9 +925,11 @@ function Get-DiscoveredTargets {
                 $name = [string](Get-DataRowValue -Row $row -Column 'TargetName')
                 $kind = [string](Get-DataRowValue -Row $row -Column 'TargetType')
                 if (-not [string]::IsNullOrWhiteSpace($name)) {
+                    $targetKind = 'Discovered target'
+                    if ($kind) { $targetKind = $kind }
                     $targets += [ordered]@{
                         target = $name
-                        kind = if ($kind) { $kind } else { 'Discovered target' }
+                        kind = $targetKind
                     }
                 }
             }
@@ -908,8 +985,13 @@ function Invoke-PortCheckModule {
         $probe = Test-PortConnectivity -ComputerName $item.target -PortNumber $item.port
         $probe.label = $item.label
         $results += $probe
-        $status = if ($probe.reachable) { 'passed' } else { 'warning' }
-        $rec = if ($probe.reachable) { '' } else { "Verify connectivity from this host to $($probe.target):$($probe.port)." }
+        if ($probe.reachable) {
+            $status = 'passed'
+            $rec = ''
+        } else {
+            $status = 'warning'
+            $rec = "Verify connectivity from this host to $($probe.target):$($probe.port)."
+        }
         $evidence = "{0} via {1}; Detail={2}" -f $key, $probe.source, $probe.detail
         Add-Check -Id ("port-check-" + ($key -replace '[^a-zA-Z0-9]+', '-').ToLower()) -Category 'Port Checks' -Name "$($item.label) connectivity" -Status $status -Severity 'medium' -Evidence $evidence -Recommendation $rec
     }
@@ -1037,23 +1119,48 @@ function Invoke-UpgradeReadinessChecks {
     try {
         $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
         $supported = ($os.Caption -match '2016|2019|2022')
-        Add-Check -Id 'os-version' -Category 'Upgrade Readiness' -Name 'OS Version' -Status (if ($supported) { 'passed' } else { 'warning' }) -Severity 'medium' -Evidence "$($os.Caption) (Build $($os.BuildNumber))" -Recommendation (if ($supported) { '' } else { 'Confirm that this Windows Server version is supported for the target Veeam ONE release.' })
+        if ($supported) {
+            $status = 'passed'
+            $recommendation = ''
+        } else {
+            $status = 'warning'
+            $recommendation = 'Confirm that this Windows Server version is supported for the target Veeam ONE release.'
+        }
+        Add-Check -Id 'os-version' -Category 'Upgrade Readiness' -Name 'OS Version' -Status $status -Severity 'medium' -Evidence "$($os.Caption) (Build $($os.BuildNumber))" -Recommendation $recommendation
     } catch {
         Add-Check -Id 'os-version' -Category 'Upgrade Readiness' -Name 'OS Version' -Status 'skipped' -Severity 'medium' -Evidence $_.Exception.Message -Recommendation ''
     }
 
     try {
         $cores = [int]$computerSystem.NumberOfLogicalProcessors
-        $status = if ($cores -ge 4) { 'passed' } elseif ($cores -ge 2) { 'warning' } else { 'failed' }
-        Add-Check -Id 'cpu-count' -Category 'Upgrade Readiness' -Name 'CPU Cores' -Status $status -Severity 'medium' -Evidence "$cores logical processor(s)." -Recommendation (if ($status -eq 'passed') { '' } else { 'Allocate at least 4 logical processors before upgrade.' })
+        if ($cores -ge 4) {
+            $status = 'passed'
+            $recommendation = ''
+        } elseif ($cores -ge 2) {
+            $status = 'warning'
+            $recommendation = 'Allocate at least 4 logical processors before upgrade.'
+        } else {
+            $status = 'failed'
+            $recommendation = 'Allocate at least 4 logical processors before upgrade.'
+        }
+        Add-Check -Id 'cpu-count' -Category 'Upgrade Readiness' -Name 'CPU Cores' -Status $status -Severity 'medium' -Evidence "$cores logical processor(s)." -Recommendation $recommendation
     } catch {
         Add-Check -Id 'cpu-count' -Category 'Upgrade Readiness' -Name 'CPU Cores' -Status 'skipped' -Severity 'medium' -Evidence $_.Exception.Message -Recommendation ''
     }
 
     try {
         $ramGb = [math]::Round([double]$computerSystem.TotalPhysicalMemory / 1GB, 1)
-        $status = if ($ramGb -ge 8) { 'passed' } elseif ($ramGb -ge 4) { 'warning' } else { 'failed' }
-        Add-Check -Id 'ram-amount' -Category 'Upgrade Readiness' -Name 'Memory (RAM)' -Status $status -Severity 'high' -Evidence "$ramGb GB physical memory." -Recommendation (if ($status -eq 'passed') { '' } else { 'Increase memory before upgrade.' })
+        if ($ramGb -ge 8) {
+            $status = 'passed'
+            $recommendation = ''
+        } elseif ($ramGb -ge 4) {
+            $status = 'warning'
+            $recommendation = 'Increase memory before upgrade.'
+        } else {
+            $status = 'failed'
+            $recommendation = 'Increase memory before upgrade.'
+        }
+        Add-Check -Id 'ram-amount' -Category 'Upgrade Readiness' -Name 'Memory (RAM)' -Status $status -Severity 'high' -Evidence "$ramGb GB physical memory." -Recommendation $recommendation
     } catch {
         Add-Check -Id 'ram-amount' -Category 'Upgrade Readiness' -Name 'Memory (RAM)' -Status 'skipped' -Severity 'high' -Evidence $_.Exception.Message -Recommendation ''
     }
@@ -1061,8 +1168,17 @@ function Invoke-UpgradeReadinessChecks {
     try {
         $drive = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='$($env:SystemDrive)'" -ErrorAction Stop
         $freeGb = [math]::Round([double]$drive.FreeSpace / 1GB, 1)
-        $status = if ($freeGb -ge 10) { 'passed' } elseif ($freeGb -ge 5) { 'warning' } else { 'failed' }
-        Add-Check -Id 'disk-free-system' -Category 'Upgrade Readiness' -Name 'System Drive Free Space' -Status $status -Severity 'high' -Evidence "$freeGb GB free on $($env:SystemDrive)." -Recommendation (if ($status -eq 'passed') { '' } else { 'Free additional system drive space before upgrade.' })
+        if ($freeGb -ge 10) {
+            $status = 'passed'
+            $recommendation = ''
+        } elseif ($freeGb -ge 5) {
+            $status = 'warning'
+            $recommendation = 'Free additional system drive space before upgrade.'
+        } else {
+            $status = 'failed'
+            $recommendation = 'Free additional system drive space before upgrade.'
+        }
+        Add-Check -Id 'disk-free-system' -Category 'Upgrade Readiness' -Name 'System Drive Free Space' -Status $status -Severity 'high' -Evidence "$freeGb GB free on $($env:SystemDrive)." -Recommendation $recommendation
     } catch {
         Add-Check -Id 'disk-free-system' -Category 'Upgrade Readiness' -Name 'System Drive Free Space' -Status 'skipped' -Severity 'high' -Evidence $_.Exception.Message -Recommendation ''
     }
@@ -1082,8 +1198,14 @@ function Invoke-UpgradeReadinessChecks {
 
     $dotNet = Get-DotNetVersion
     if ($dotNet) {
-        $status = if ($dotNet.release -ge 461808) { 'passed' } else { 'warning' }
-        Add-Check -Id 'dotnet-runtime' -Category 'Upgrade Readiness' -Name '.NET Framework' -Status $status -Severity 'medium' -Evidence ".NET Framework $($dotNet.version) (release $($dotNet.release))." -Recommendation (if ($status -eq 'passed') { '' } else { 'Install .NET Framework 4.7.2 or later before upgrading.' })
+        if ($dotNet.release -ge 461808) {
+            $status = 'passed'
+            $recommendation = ''
+        } else {
+            $status = 'warning'
+            $recommendation = 'Install .NET Framework 4.7.2 or later before upgrading.'
+        }
+        Add-Check -Id 'dotnet-runtime' -Category 'Upgrade Readiness' -Name '.NET Framework' -Status $status -Severity 'medium' -Evidence ".NET Framework $($dotNet.version) (release $($dotNet.release))." -Recommendation $recommendation
     } else {
         Add-Check -Id 'dotnet-runtime' -Category 'Upgrade Readiness' -Name '.NET Framework' -Status 'warning' -Severity 'medium' -Evidence 'Could not detect the installed .NET Framework version.' -Recommendation 'Validate the required .NET Framework version manually.'
     }
@@ -1103,7 +1225,7 @@ function Invoke-UpgradeReadinessChecks {
         Add-Check -Id 'pending-reboot' -Category 'Upgrade Readiness' -Name 'Pending Reboot' -Status 'skipped' -Severity 'low' -Evidence $_.Exception.Message -Recommendation ''
     }
 
-    $accounts = @($Services | Where-Object { $_.exists -and $_.account } | Select-Object -ExpandProperty account -Unique)
+    $accounts = @($Services | Where-Object { $_.exists -and $_.account } | ForEach-Object { $_.account } | Select-Object -Unique)
     if ($accounts.Count -gt 0) {
         Add-Check -Id 'service-account-summary' -Category 'Upgrade Readiness' -Name 'Service Account Configuration' -Status 'passed' -Severity 'medium' -Evidence ("Service accounts: " + ($accounts -join ', ')) -Recommendation ''
     } else {
@@ -1114,8 +1236,8 @@ function Invoke-UpgradeReadinessChecks {
         mode = $Mode
         currentVersion = $CurrentVersion
         targetVersion = $TargetVersion
-        blockers = @($script:Checks | Where-Object { $_.category -eq 'Upgrade Readiness' -and $_.status -eq 'failed' } | Select-Object -ExpandProperty name)
-        warnings = @($script:Checks | Where-Object { $_.category -eq 'Upgrade Readiness' -and $_.status -eq 'warning' } | Select-Object -ExpandProperty name)
+        blockers = @($script:Checks | Where-Object { $_.category -eq 'Upgrade Readiness' -and $_.status -eq 'failed' } | ForEach-Object { $_.name })
+        warnings = @($script:Checks | Where-Object { $_.category -eq 'Upgrade Readiness' -and $_.status -eq 'warning' } | ForEach-Object { $_.name })
     }
 }
 
@@ -1145,9 +1267,13 @@ function Compute-OverallSummary {
     }
     $score = [math]::Max(0, 100 - $deduction)
     $blockers = @($script:Checks | Where-Object { $_.status -eq 'failed' -and ($criticalIds -contains $_.id -or $_.severity -eq 'critical') })
-    $status = if ($blockers.Count -gt 0 -or $score -lt 60) { 'Not Ready' }
-        elseif ($score -lt 85 -or $warningCount -gt 0) { 'Warning' }
-        else { 'Ready' }
+    if ($blockers.Count -gt 0 -or $score -lt 60) {
+        $status = 'Not Ready'
+    } elseif ($score -lt 85 -or $warningCount -gt 0) {
+        $status = 'Warning'
+    } else {
+        $status = 'Ready'
+    }
 
     $topIssues = @(
         $script:Checks |
@@ -1166,7 +1292,7 @@ function Compute-OverallSummary {
         warnings = @($script:Checks | Where-Object { $_.status -eq 'warning' }).Count
         failed = @($script:Checks | Where-Object { $_.status -eq 'failed' }).Count
         skipped = @($script:Checks | Where-Object { $_.status -eq 'skipped' }).Count
-        criticalIssues = @($script:Checks | Where-Object { $_.status -eq 'failed' -and $_.severity -in @('critical', 'high') } | Select-Object -ExpandProperty name)
+        criticalIssues = @($script:Checks | Where-Object { $_.status -eq 'failed' -and $_.severity -in @('critical', 'high') } | ForEach-Object { $_.name })
         recommendations = @($script:Recommendations)
     }
 }
@@ -1214,8 +1340,13 @@ function Export-CsvReport {
     $Report.checks | Export-Csv -Path $Path -NoTypeInformation -Encoding UTF8
 }
 
+Ensure-ParentDirectory -Path $ExportJson
+if ($ExportHtml) { Ensure-ParentDirectory -Path $ExportHtml }
+if ($ExportCsv) { Ensure-ParentDirectory -Path $ExportCsv }
+
 Write-Section 'Veeam ONE Health Check & Troubleshooting Assistant'
 Write-Host "Mode: $Mode" -ForegroundColor Cyan
+Write-Host "Script root: $ScriptRoot" -ForegroundColor DarkGray
 Write-Host "Basic checks do not require admin rights. Some details may be reduced without elevation." -ForegroundColor DarkGray
 if (-not (Test-IsAdministrator)) {
     Write-Host 'Running without elevation. Some service/process details may be limited.' -ForegroundColor Yellow
@@ -1264,10 +1395,16 @@ if ($Mode -eq 'Full' -or $ValidateSizing) {
 }
 
 $summary = Compute-OverallSummary
+$action = 'Full Health Check'
+if ($Mode -eq 'Upgrade') {
+    $action = 'Upgrade Readiness'
+} elseif ($Mode -eq 'Health') {
+    $action = 'Health Check'
+}
 $report = [ordered]@{
     product = 'Veeam ONE'
     toolName = 'Veeam ONE Health Check & Troubleshooting Assistant'
-    action = if ($Mode -eq 'Upgrade') { 'Upgrade Readiness' } elseif ($Mode -eq 'Health') { 'Health Check' } else { 'Full Health Check' }
+    action = $action
     mode = $Mode
     timestamp = (Get-Date).ToUniversalTime().ToString('o')
     currentVersion = $CurrentVersion
